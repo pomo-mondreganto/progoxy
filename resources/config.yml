@@ -1,0 +1,17 @@
+log_everything: true
+
+services:
+  first_test:
+    source:
+      port: 1337
+      host: 0.0.0.0
+      plugins:
+        simple_shout:
+          log_everything: true
+        drop_regex:
+          log_everything: true
+          regex: "[A-Z]{31}="
+
+    destination:
+      port: 1338
+      host: 127.0.0.1
