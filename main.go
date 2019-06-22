@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"os"
@@ -10,7 +12,13 @@ import (
 )
 
 func init() {
-	viper.SetConfigFile("resources/config.yml")
+	resourcesDir := flag.String("resources", "./resources", "Directory with config and plugins")
+	flag.Parse()
+
+	configPath := fmt.Sprintf("%s/config.yml", *resourcesDir)
+	viper.SetConfigFile(configPath)
+
+	viper.Set("resources_path", *resourcesDir)
 
 	viper.SetDefault("log_everything", true)
 	viper.SetDefault("idle_timeout", 10*time.Second)

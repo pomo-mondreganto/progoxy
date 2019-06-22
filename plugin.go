@@ -3,11 +3,12 @@ package main
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"plugin"
 )
 
 type Processor interface {
-	Init(map[string]interface{}) error
+	Init(map[string]interface{}, ...interface{}) error
 	Process(buf []byte) []byte
 }
 
@@ -16,7 +17,7 @@ type PluginWrapper struct {
 }
 
 func (pw *PluginWrapper) Load(pluginName string, pluginConfig map[string]interface{}) {
-	filepath := fmt.Sprintf("resources/plugins/%s.so", pluginName)
+	filepath := fmt.Sprintf("%s/plugins/%s.so", viper.Get("resources_path"), pluginName)
 	p, err := plugin.Open(filepath)
 	if err != nil {
 		logrus.Fatalf("Error opening plugin %s: %v", pluginName, err)
@@ -40,7 +41,7 @@ func (pw *PluginWrapper) Load(pluginName string, pluginConfig map[string]interfa
 
 	pw.proc = proc
 
-	err = pw.proc.Init(pluginConfig)
+	err = pw.proc.Init(pluginConfig, viper.GetString("resources_path"))
 	if err != nil {
 		logrus.Fatalf("Error initializing plugin %s: %v", pluginName, err)
 	}

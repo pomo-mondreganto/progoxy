@@ -5,9 +5,9 @@ import (
 	"strings"
 )
 
-type Processor struct {}
+type Processor struct{}
 
-func (p *Processor) Init(config map[string]interface{}) error {
+func (p *Processor) Init(config map[string]interface{}, _ ...interface{}) error {
 	return nil
 }
 

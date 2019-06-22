@@ -12,10 +12,10 @@ var (
 )
 
 type Processor struct {
-	dropReg       *regexp.Regexp
+	dropReg *regexp.Regexp
 }
 
-func (p *Processor) Init(config map[string]interface{}) error {
+func (p *Processor) Init(config map[string]interface{}, _ ...interface{}) error {
 	p.dropReg, err = regexp.Compile(config["regex"].(string))
 	if err != nil {
 		return InvConfig
