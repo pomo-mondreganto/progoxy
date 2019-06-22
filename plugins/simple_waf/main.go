@@ -29,7 +29,7 @@ func (p *Processor) Init(config map[string]interface{}) error {
 	}
 
 	filePath := fmt.Sprintf("resources/%s", filename)
-	logrus.Infof("Loading strings from ", filePath)
+	logrus.Info("Loading strings from ", filePath)
 
 	inFile, err := os.Open(filePath)
 	if err != nil {

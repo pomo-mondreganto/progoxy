@@ -16,7 +16,7 @@ type PluginWrapper struct {
 }
 
 func (pw *PluginWrapper) Load(pluginName string, pluginConfig map[string]interface{}) {
-	filepath := fmt.Sprintf("plugins/%s/%s.so", pluginName, pluginName)
+	filepath := fmt.Sprintf("resources/plugins/%s.so", pluginName)
 	p, err := plugin.Open(filepath)
 	if err != nil {
 		logrus.Fatalf("Error opening plugin %s: %v", pluginName, err)
