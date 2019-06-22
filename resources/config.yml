@@ -23,11 +23,8 @@ services:
       port: 1339
       host: 0.0.0.0
       plugins:
-        simple_shout:
-          log_everything: true
-        drop_regex:
-          log_everything: true
-          regex: "[A-Z]{31}="
+        simple_waf:
+          dictionary: "banlist.txt"
 
     destination:
       command: "python3 /Users/nikrom/tmp/test_progoxy.py"
