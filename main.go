@@ -70,11 +70,10 @@ func main() {
 	logrus.Info("Shutting down servers")
 	for _, server := range servers {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*server.IdleTimeout)
-		//noinspection GoDeferInLoop
-		defer cancel()
 		err = server.Shutdown(ctx)
 		if err != nil {
 			logrus.Fatal("Error shutting down server: ", err)
 		}
+		cancel()
 	}
 }

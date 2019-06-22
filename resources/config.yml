@@ -2,6 +2,7 @@ log_everything: true
 
 services:
   first_test:
+    type: socket
     source:
       port: 1337
       host: 0.0.0.0
@@ -15,3 +16,18 @@ services:
     destination:
       port: 1338
       host: 127.0.0.1
+
+  second_test:
+    type: command
+    source:
+      port: 1339
+      host: 0.0.0.0
+      plugins:
+        simple_shout:
+          log_everything: true
+        drop_regex:
+          log_everything: true
+          regex: "[A-Z]{31}="
+
+    destination:
+      command: "python3 /Users/nikrom/tmp/test_progoxy.py"

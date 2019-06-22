@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"github.com/sirupsen/logrus"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -92,14 +93,14 @@ func (ss *ServiceServer) Serve() {
 		}
 		logrus.Debug("Accepted connection from ", newConn.RemoteAddr())
 
-		outConn, err := net.Dial("tcp", ss.Srv.DstAddr)
+		outConn, err := ss.Srv.Connector.GetConnection()
 		if err != nil {
 			logrus.Errorf("Error opening connection for service %s: %v", ss.Srv.Name, err)
 			_ = newConn.Close()
 			continue
 		}
 
-		logrus.Debug("Connected to ", ss.Srv.DstAddr)
+		logrus.Debug("Opened connection for ", ss.Srv.Name)
 
 		conn := &Connection{
 			Conn:         newConn,
@@ -150,10 +151,14 @@ func (ss *ServiceServer) Handle(conn *Connection) {
 			_, err = dstW.Write(newSrcData)
 			if err != nil {
 				logrus.Error("Error writing to dst connection: ", err)
+				srcMu.Unlock()
+				continue
 			}
 			err = dstW.Flush()
 			if err != nil {
 				logrus.Error("Error flushing dst connection: ", err)
+				srcMu.Unlock()
+				continue
 			}
 			deadline = time.After(conn.IdleTimeout)
 			srcMu.Unlock()
@@ -165,6 +170,8 @@ func (ss *ServiceServer) Handle(conn *Connection) {
 			_, err = srcW.Write(newDstData)
 			if err != nil {
 				logrus.Error("Error writing to src connection: ", err)
+				dstMu.Unlock()
+				continue
 			}
 			err = srcW.Flush()
 			if err != nil {
@@ -172,6 +179,10 @@ func (ss *ServiceServer) Handle(conn *Connection) {
 			}
 			dstMu.Unlock()
 		case err := <-errCh:
+			if err == io.EOF {
+				logrus.Debug("Got EOF on connection, closing")
+				return
+			}
 			logrus.Error("Error reading from connection: ", err)
 		}
 	}

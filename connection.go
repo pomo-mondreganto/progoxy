@@ -7,12 +7,33 @@ import (
 	"time"
 )
 
+func ReadToChannel(outCh chan []byte, errCh chan error, r io.Reader) {
+	buf := make([]byte, 1024)
+	for {
+		curPos := 0
+		for {
+			cnt, err := r.Read(buf[curPos:])
+			if cnt > 0 {
+				outCh <- buf[curPos : curPos+cnt]
+				curPos += cnt
+			}
+			if err != nil {
+				errCh <- err
+				return
+			}
+			if curPos >= len(buf) {
+				break
+			}
+		}
+	}
+}
+
 type Connection struct {
 	net.Conn
 	IdleTimeout  time.Duration
 	MaxReadBytes int64
 
-	OutConn net.Conn
+	OutConn io.ReadWriteCloser
 }
 
 func (c *Connection) updateDeadline() {
@@ -37,51 +58,18 @@ func (c *Connection) Read(b []byte) (n int, err error) {
 
 func (c *Connection) Close() (err error) {
 	err = c.Conn.Close()
+	if err != nil {
+		_ = c.OutConn.Close()
+		return
+	}
+	err = c.OutConn.Close()
 	return
 }
 
 func (c *Connection) StartReadingSrc(outCh chan []byte, errCh chan error) {
-	buf := make([]byte, 1024)
-	for {
-		curPos := 0
-		for {
-			cnt, err := c.Read(buf[curPos:])
-			if cnt > 0 {
-				outCh <- buf[curPos : curPos+cnt]
-				curPos += cnt
-			}
-			if err != nil {
-				if err != io.EOF {
-					errCh <- err
-				}
-				return
-			}
-			if curPos >= len(buf) {
-				break
-			}
-		}
-	}
+	ReadToChannel(outCh, errCh, c)
 }
 
 func (c *Connection) StartReadingDst(outCh chan []byte, errCh chan error) {
-	buf := make([]byte, 1024)
-	for {
-		curPos := 0
-		for {
-			cnt, err := c.OutConn.Read(buf[curPos:])
-			if cnt > 0 {
-				outCh <- buf[curPos : curPos+cnt]
-				curPos += cnt
-			}
-			if err != nil {
-				if err != io.EOF {
-					errCh <- err
-				}
-				return
-			}
-			if curPos >= len(buf) {
-				break
-			}
-		}
-	}
+	ReadToChannel(outCh, errCh, c.OutConn)
 }

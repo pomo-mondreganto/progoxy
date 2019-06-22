@@ -3,14 +3,64 @@ package main
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"io"
+	"net"
+	"os/exec"
 )
+
+type socketConnector struct {
+	addr string
+}
+
+func (sc socketConnector) GetConnection() (io.ReadWriteCloser, error) {
+	return net.Dial("tcp", sc.addr)
+}
+
+type commandConnector struct {
+	command string
+}
+
+func (ca commandConnector) GetConnection() (io.ReadWriteCloser, error) {
+	w, r := io.Pipe()
+
+	crwc := CommandReadWriteCloserImpl{}
+	crwc.ReadCloser = w
+
+	cmd := exec.Command("sh", "-c", ca.command)
+	cmd.Stdout = r
+	cmd.Stderr = r
+
+	crwc.WriteCloser, _ = cmd.StdinPipe()
+	err = cmd.Start()
+
+	return crwc, err
+}
+
+type CommandReadWriteCloserImpl struct {
+	io.ReadCloser
+	io.WriteCloser
+}
+
+func (c CommandReadWriteCloserImpl) Close() (err error) {
+	err = c.ReadCloser.Close()
+	if err != nil {
+		_ = c.WriteCloser.Close()
+		return
+	}
+	err = c.WriteCloser.Close()
+	return
+}
+
+type Connector interface {
+	GetConnection() (io.ReadWriteCloser, error)
+}
 
 type Service struct {
 	Name       string
 	SrcAddr    string
-	DstAddr    string
 	SrcPlugins []*PluginWrapper
 	DstPlugins []*PluginWrapper
+	Connector  Connector
 }
 
 func loadPlugins(pluginsMap map[string]interface{}) []*PluginWrapper {
@@ -29,6 +79,11 @@ func loadPlugins(pluginsMap map[string]interface{}) []*PluginWrapper {
 }
 
 func (sv *Service) Load(name string, serviceMap map[string]interface{}) {
+	serviceType, ok := serviceMap["type"].(string)
+	if !ok {
+		logrus.Fatal("No type config provided for service: ", serviceMap)
+	}
+
 	srcConfig, ok := serviceMap["source"].(map[string]interface{})
 	if !ok {
 		logrus.Fatal("No source config provided for service: ", serviceMap)
@@ -39,24 +94,34 @@ func (sv *Service) Load(name string, serviceMap map[string]interface{}) {
 		logrus.Fatal("No destination config provided for service: ", serviceMap)
 	}
 
-	srcPort, ok := srcConfig["port"].(int)
-	if !ok {
-		logrus.Fatal("No source port provided for service: ", serviceMap)
-	}
-
-	dstPort, ok := dstConfig["port"].(int)
-	if !ok {
-		logrus.Fatal("No destination port provided for service: ", serviceMap)
-	}
-
 	srcHost, ok := srcConfig["host"].(string)
 	if !ok {
 		srcHost = "0.0.0.0"
 	}
 
-	dstHost, ok := dstConfig["host"].(string)
+	srcPort, ok := srcConfig["port"].(int)
 	if !ok {
-		dstHost = "127.0.0.1"
+		logrus.Fatal("No source port provided for service: ", serviceMap)
+	}
+
+	if serviceType == "socket" {
+		dstHost, ok := dstConfig["host"].(string)
+		if !ok {
+			dstHost = "127.0.0.1"
+		}
+
+		dstPort, ok := dstConfig["port"].(int)
+		if !ok {
+			logrus.Fatal("No destination port provided for service: ", serviceMap)
+		}
+
+		sv.Connector = socketConnector{fmt.Sprintf("%s:%d", dstHost, dstPort)}
+	} else if serviceType == "command" {
+		command, ok := dstConfig["command"].(string)
+		if !ok {
+			logrus.Fatal("No command provided for service: ", serviceMap)
+		}
+		sv.Connector = commandConnector{command}
 	}
 
 	var srcPlugins []*PluginWrapper
@@ -77,7 +142,6 @@ func (sv *Service) Load(name string, serviceMap map[string]interface{}) {
 
 	sv.Name = name
 	sv.SrcAddr = fmt.Sprintf("%s:%d", srcHost, srcPort)
-	sv.DstAddr = fmt.Sprintf("%s:%d", dstHost, dstPort)
 	sv.SrcPlugins = srcPlugins
 	sv.DstPlugins = dstPlugins
 }
